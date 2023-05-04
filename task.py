@@ -1,62 +1,101 @@
+# Importing the libraries
+
 import os
 import shutil
 import time
 import argparse
 import logging
 
-# Initialize logger
-logging.basicConfig(filename='sync.log', level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
-def sync_folders(src_folder, replica_folder):
-    # Get list of all files and folders in source folder
-    src_list = os.listdir(src_folder)
-    
-    # Create replica folder if it doesn't exist
-    if not os.path.exists(replica_folder):
-        os.makedirs(replica_folder)
-    
-    # Copy each file from source to replica, or delete files from replica that aren't in source
-    for item in src_list:
-        src_path = os.path.join(src_folder, item)
-        replica_path = os.path.join(replica_folder, item)
+
+class SyncFolder:
+
+    def __init__(self, source, replica, interval, log_file):
+        self.source = source
+        self.replica = replica
+        self.interval = interval
+        self.log_file = log_file
+        #self.log_file = logging.FileHandler(self.log_file)
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+        self.log_file = logging.FileHandler(self.log_file)
+        self.logger.addHandler(self.log_file)
+        #self.log_file.setLevel(logging.INFO)
+        #self.log_file = logging.FileHandler(self.log_file)
+        #logging.basicConfig(level=logging.DEBUG,
+                  # format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S', handlers = [self.log_file])
+        self.logger.info(f'Start of sync')
+        #self.log_file.setLevel(logging.ERROR)
+
+    ## check if the folder exists    
+    def folder_check(self):
+        if not os.path.exists(self.source):
+            raise FileNotFoundError(f"Source path '{self.source}' does not exist")
         
-        if os.path.isfile(src_path):
-            # Copy file from source to replica
-            if os.path.exists(replica_path):
-                # Check if file is different
-                src_stat = os.stat(src_path)
-                replica_stat = os.stat(replica_path)
-                if src_stat.st_mtime != replica_stat.st_mtime:
-                    logging.info(f'Copying file {src_path} to {replica_path}')
-                    shutil.copy2(src_path, replica_path)
-            else:
-                logging.info(f'Copying file {src_path} to {replica_path}')
-                shutil.copy2(src_path, replica_path)
-        elif os.path.isdir(src_path):
-            # Sync subdirectory recursively
-            sync_folders(src_path, replica_path)
+        if not os.path.exists(self.replica):
+            os.makedirs(self.replica)
+    
     
     # Remove any files from replica that aren't in source
-    replica_list = os.listdir(replica_folder)
-    for item in replica_list:
-        replica_path = os.path.join(replica_folder, item)
+    def remove_files(self, src_file_list):
+        rep_list = os.listdir(self.replica)
+        for file in rep_list:
+            rep_path = os.path.join(self.replica, file)
+            
+            if os.path.isfile(rep_path) and file not in src_file_list:
+                self.log_file.info(f'Removing file {rep_path}')
+                os.remove(rep_path)
+            elif os.path.isdir(rep_path) and file not in src_file_list:
+                self.logger.info(f'Removing directory {rep_path}')
+                os.rmdir(rep_path)
+
+    def sync(self):
+        src_file_list = os.listdir(self.source)
+
+        for file in src_file_list:
+            src_file_path = os.path.join(self.source, file)
+            rep_file_path = os.path.join(self.replica, file)
+
+            if os.path.isfile(src_file_path ):
+                # Copy file from source to replica
+                if os.path.exists(rep_file_path):
+                    # Check if file is different
+                    src_stat = os.stat(src_file_path)
+                    rep_stat = os.stat(rep_file_path)
+                    if src_stat.st_mtime != rep_stat.st_mtime:
+                        self.log_file.info(f'Copying file {src_file_path} to {rep_file_path}')
+                        shutil.copy2(src_file_path, rep_file_path)
+                else:
+                    logging.info(f'Copying file {src_file_path} to {rep_file_path}')
+                    shutil.copy2(src_file_path, rep_file_path)
+            elif os.path.isdir(src_file_path):
+                # Sync subdirectory recursively
+                self.sync()
+        self.remove_files(src_file_list)
+
+    def main(self):
+        try:
+            self.folder_check()
+            self.sync()
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            self.logger.error(f"Error occurred: {e}\n")
+        # Sleep for the given interval
+        time.sleep(self.interval)
         
-        if os.path.isfile(replica_path) and item not in src_list:
-            logging.info(f'Removing file {replica_path}')
-            os.remove(replica_path)
-        elif os.path.isdir(replica_path) and item not in src_list:
-            logging.info(f'Removing directory {replica_path}')
-            shutil.rmtree(replica_path)
+
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Synchronize two folders')
-    parser.add_argument('-src_folder', help='Path to source folder')
-    parser.add_argument('-replica_folder', help='Path to replica folder')
-    parser.add_argument('-i', '--interval', type=int, default=60, help='Interval between syncs in seconds')
-    parser.add_argument('-l', '--log', default='sync.log', help='Path to log file')
+    parser.add_argument('-src', help='Path to source folder')
+    parser.add_argument('-rep', help='Path to replica folder')
+    parser.add_argument('-i', type=int, default=20, help='Interval between syncs in seconds')
+    parser.add_argument('-log', default='sync.log', help='Path to log file')
     args = parser.parse_args()
 
     while True:
-        sync_folders(args.src_folder, args.replica_folder)
-        time.sleep(args.interval)
+        task= SyncFolder(args.src, args.rep, args.i, args.log)
+        task.main()
+        time.sleep(args.i)
