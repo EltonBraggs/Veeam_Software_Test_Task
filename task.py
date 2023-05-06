@@ -45,8 +45,8 @@ class SyncFolder:
             src_file_list = os.listdir(src_file_path)
 
             for file in src_file_list:
-                src_file_path = os.path.join(source, file)
-                rep_file_path = os.path.join(replica, file)
+                src_file_path = os.path.join(self.source, file)
+                rep_file_path = os.path.join(self.replica, file)
 
                 if os.path.isfile(src_file_path ):
                     # Copy file from source to replica
