@@ -110,7 +110,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Synchronize two folders')
     parser.add_argument('-src', help='Path to source folder')
     parser.add_argument('-rep', help='Path to replica folder')
-    parser.add_argument('-i', type=int, default=5, help='Interval between syncs in seconds: Default is 20 seconds')
+    parser.add_argument('-i', type=int, default=20, help='Interval between syncs in seconds: Default is 20 seconds')
     parser.add_argument('-log', default='sync.log', help='Path to log file')
     args = parser.parse_args()
     task= SyncFolder(args.src, args.rep, args.i, args.log)
